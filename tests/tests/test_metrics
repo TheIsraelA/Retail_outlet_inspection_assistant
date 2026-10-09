@@ -1,0 +1,49 @@
+from ingestion.load_data import load_dataset
+from metrics.compliance_metrics import (
+    overall_compliance_rate,
+    compliance_rate_by,
+    non_compliance_rate_by,
+    severity_mix,
+    follow_up_status_counts,
+    avg_days_to_resolution,
+)
+
+
+def _load_records():
+    return load_dataset().records
+
+
+def test_overall_compliance_rate_is_a_proportion():
+    rate = overall_compliance_rate(_load_records())
+    assert 0.0 <= rate <= 1.0
+
+
+def test_compliance_rate_by_outlet_covers_every_outlet():
+    records = _load_records()
+    result = compliance_rate_by(records, "outlet_id")
+    assert len(result) == records["outlet_id"].nunique()
+    assert result.between(0, 1).all()
+
+
+def test_non_compliance_rate_by_category_is_sorted_descending():
+    records = _load_records()
+    result = non_compliance_rate_by(records, "inspection_category")
+    assert len(result) == records["inspection_category"].nunique()
+    assert list(result) == sorted(result, reverse=True)
+
+
+def test_severity_mix_excludes_not_applicable():
+    result = severity_mix(_load_records())
+    assert "Not Applicable" not in result.index
+    assert abs(result.sum() - 1.0) < 1e-9
+
+
+def test_follow_up_status_counts_sum_to_total_records():
+    records = _load_records()
+    result = follow_up_status_counts(records)
+    assert result.sum() == len(records)
+
+
+def test_avg_days_to_resolution_is_a_positive_number():
+    avg = avg_days_to_resolution(_load_records())
+    assert avg > 0
